@@ -5,8 +5,13 @@ import User from "../model/User";
 export class StakeController {
   public createStake = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { userId } = req.body;
       const { issueId, repository, amount, prUrl } = req.body;
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+
+      if (!userId) {
+        res.status(401).json({ success: false, message: "User not authenticated" });
+        return;
+      }
 
       const user = await User.findById(userId);
       if (!user || user.coins < amount) {
@@ -108,7 +113,11 @@ export class StakeController {
 
   public getUserStakes = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { userId } = req.body;
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      if (!userId) {
+        res.status(401).json({ success: false, message: "User not authenticated" });
+        return;
+      }
       const stakes = await Stake.find({ userId }).sort({ createdAt: -1 });
 
       res.status(200).json({

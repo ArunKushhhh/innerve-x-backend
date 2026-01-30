@@ -8,7 +8,7 @@ import helmet from "helmet";
 import { handlePRWebhook } from "./webhooks/githubWebhooks";
 import passport from "passport";
 import "./auth/github";
-// import contributorRoutes from "./routes/contributorRoutes";
+import contributorRoutes from "./routes/contributorRoutes";
 import maintainerRoutes from "./routes/MaintainerRoutes";
 import { githubApiRateLimit } from "./middleware/rateLimitMiddleware";
 import User from "./model/User";
@@ -25,7 +25,7 @@ app.use(
     credentials: true,
     origin: (incomingOrigin, callback) => {
       const whitelist = [
-        "http://localhost:5173",
+        "http://localhost:5173", "http://localhost:5176",
         "https://pull-quest-frontend.vercel.app",
       ];
       if (!incomingOrigin || whitelist.includes(incomingOrigin)) {
@@ -57,10 +57,15 @@ app.use("/", authRoutes);
 // GitHub OAuth (without sessions)
 app.get(
   "/auth/github",
-  passport.authenticate("github", {
-    scope: ["user:email"],
-    session: false,
-  }),
+  (req: Request, res: Response, next: NextFunction) => {
+    const { role } = req.query;
+    console.log("🔍 Incoming role for /auth/github initiation:", role);
+    passport.authenticate("github", {
+      scope: ["user:email"],
+      session: false,
+      state: role ? JSON.stringify({ role }) : undefined,
+    })(req, res, next);
+  },
 );
 
 app.get(
@@ -68,34 +73,49 @@ app.get(
   passport.authenticate("github", { failureRedirect: "/", session: false }),
   async (req, res) => {
     try {
+      console.log("🔍 OAuth Callback Params:", req.query);
       const { profile, accessToken, refreshToken } = req.user as any;
+      console.log("🔍 GitHub Profile:", profile.username);
       const githubUsername = profile.username;
 
+      // Extract role from state
+      let requestedRole: string | null = null;
+      const { state } = req.query;
+      console.log("🔍 OAuth State:", state);
+      if (state && typeof state === "string") {
+        try {
+          const parsedState = JSON.parse(state);
+          if (parsedState.role) {
+            requestedRole = parsedState.role;
+            console.log("✅ Extracted requestedRole from state:", requestedRole);
+          }
+        } catch (e) {
+          console.error("Failed to parse state:", e);
+        }
+      }
+
       await connectDB();
-      // ...
+
       const dbUser = (await User.findOneAndUpdate(
         { githubUsername },
         {
           $set: {
             accessToken,
             refreshToken,
-            githubInfo: JSON.stringify(profile._json), // ← stringify here
+            githubInfo: JSON.stringify(profile._json),
             lastLogin: new Date(),
+            // Only set role if it's a new user or explicitly requested
+            ...(requestedRole ? { role: requestedRole } : {}),
           },
         },
         { upsert: true, new: true },
-      )) as {
-        _id: string;
-        role?: string;
-        email?: string;
-        githubUsername: string;
-      };
+      )) as any;
 
       const jwt = require("jsonwebtoken").sign(
         {
           userId: dbUser._id.toString(),
           githubUsername,
-          role: dbUser.role || "contributor",
+          role: dbUser.role,
         },
         process.env.JWT_SECRET || "fallback-secret",
         { expiresIn: "7d" },
@@ -103,7 +123,7 @@ app.get(
 
       const frontendUser = {
         id: dbUser._id.toString(),
-        role: dbUser.role || "contributor", // make sure `role` exists on the user doc
+        role: dbUser.role,
         email: dbUser.email,
         githubUsername,
         token: jwt,
@@ -125,7 +145,7 @@ app.get(
 
 app.use("/api", githubApiRateLimit);
 app.use("/api/comment", commentRoute);
-// app.use("/api/contributor", contributorRoutes);
+app.use("/api/contributor", contributorRoutes);
 app.use("/api/maintainer", maintainerRoutes);
 app.use("/api/LLM", LLMRoutes); // Migrated to Gemini API
 

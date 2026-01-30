@@ -12,7 +12,7 @@ const helmet_1 = __importDefault(require("helmet"));
 const githubWebhooks_1 = require("./webhooks/githubWebhooks");
 const passport_1 = __importDefault(require("passport"));
 require("./auth/github");
-// import contributorRoutes from "./routes/contributorRoutes";
+const contributorRoutes_1 = __importDefault(require("./routes/contributorRoutes"));
 const MaintainerRoutes_1 = __importDefault(require("./routes/MaintainerRoutes"));
 const rateLimitMiddleware_1 = require("./middleware/rateLimitMiddleware");
 const User_1 = __importDefault(require("./model/User"));
@@ -26,17 +26,17 @@ app.use((0, cors_1.default)({
     credentials: true,
     origin: (incomingOrigin, callback) => {
         const whitelist = [
-            "http://localhost:5173",
-            "https://pull-quest-frontend.vercel.app"
+            "http://localhost:5173", "http://localhost:5176",
+            "https://pull-quest-frontend.vercel.app",
         ];
         if (!incomingOrigin || whitelist.includes(incomingOrigin)) {
-            // allow requests with no origin (like mobile apps, curl) 
+            // allow requests with no origin (like mobile apps, curl)
             callback(null, true);
         }
         else {
             callback(new Error(`Origin ${incomingOrigin} not allowed by CORS`));
         }
-    }
+    },
 }));
 app.use(express_1.default.json());
 // ✅ Initialize Passport WITHOUT sessions (serverless-friendly)
@@ -52,28 +52,56 @@ app.get("/health", (req, res) => {
 });
 app.use("/", auth_1.default);
 // GitHub OAuth (without sessions)
-app.get("/auth/github", passport_1.default.authenticate("github", {
-    scope: ["user:email"],
-    session: false
-}));
+app.get("/auth/github", (req, res, next) => {
+    const { role } = req.query;
+    console.log("🔍 Incoming role for /auth/github initiation:", role);
+    passport_1.default.authenticate("github", {
+        scope: ["user:email"],
+        session: false,
+        state: role ? JSON.stringify({ role }) : undefined,
+    })(req, res, next);
+});
 app.get("/auth/github/callback", passport_1.default.authenticate("github", { failureRedirect: "/", session: false }), async (req, res) => {
     try {
+        console.log("🔍 OAuth Callback Params:", req.query);
         const { profile, accessToken, refreshToken } = req.user;
+        console.log("🔍 GitHub Profile:", profile.username);
         const githubUsername = profile.username;
+        // Extract role from state
+        let requestedRole = null;
+        const { state } = req.query;
+        console.log("🔍 OAuth State:", state);
+        if (state && typeof state === "string") {
+            try {
+                const parsedState = JSON.parse(state);
+                if (parsedState.role) {
+                    requestedRole = parsedState.role;
+                    console.log("✅ Extracted requestedRole from state:", requestedRole);
+                }
+            }
+            catch (e) {
+                console.error("Failed to parse state:", e);
+            }
+        }
         await connectDB();
-        // ...
-        const dbUser = await User_1.default.findOneAndUpdate({ githubUsername }, {
+        const dbUser = (await User_1.default.findOneAndUpdate({ githubUsername }, {
             $set: {
                 accessToken,
                 refreshToken,
-                githubInfo: JSON.stringify(profile._json), // ← stringify here
+                githubInfo: JSON.stringify(profile._json),
                 lastLogin: new Date(),
+                // Only set role if it's a new user or explicitly requested
+                ...(requestedRole ? { role: requestedRole } : {}),
             },
-        }, { upsert: true, new: true });
-        const jwt = require("jsonwebtoken").sign({ userId: dbUser._id.toString(), githubUsername }, process.env.JWT_SECRET || "fallback-secret", { expiresIn: "7d" });
+        }, { upsert: true, new: true }));
+        const jwt = require("jsonwebtoken").sign({
+            userId: dbUser._id.toString(),
+            githubUsername,
+            role: dbUser.role,
+        }, process.env.JWT_SECRET || "fallback-secret", { expiresIn: "7d" });
         const frontendUser = {
             id: dbUser._id.toString(),
-            role: dbUser.role || "contributor", // make sure `role` exists on the user doc
+            role: dbUser.role,
             email: dbUser.email,
             githubUsername,
             token: jwt,
@@ -88,10 +116,10 @@ app.get("/auth/github/callback", passport_1.default.authenticate("github", { fai
     }
 });
 app.use("/api", rateLimitMiddleware_1.githubApiRateLimit);
-app.use('/api/comment', commentRoutes_1.default);
-// app.use("/api/contributor", contributorRoutes);
+app.use("/api/comment", commentRoutes_1.default);
+app.use("/api/contributor", contributorRoutes_1.default);
 app.use("/api/maintainer", MaintainerRoutes_1.default);
-app.use("/api/LLM", LLMroutes_1.default);
+app.use("/api/LLM", LLMroutes_1.default); // Migrated to Gemini API
 // Webhooks
 app.post("/webhooks/github", express_1.default.json({ type: "application/json" }), githubWebhooks_1.handlePRWebhook);
 app.get("/", (_req, res) => {
@@ -101,7 +129,7 @@ app.get("/", (_req, res) => {
         version: "v1.0.0",
         message: "👋  Welcome!  The API is alive and ready.",
         docs: "/health, /api/maintainer/…, /auth/github, …",
-        note: "See /health for a lightweight uptime probe."
+        note: "See /health for a lightweight uptime probe.",
     });
 });
 app.use((_req, res) => {
@@ -119,10 +147,12 @@ app.use((_req, res) => {
 });
 // Error handler
 app.use((err, req, res, next) => {
-    console.error('Server Error:', err);
+    console.error("Server Error:", err);
     res.status(500).json({
-        error: 'Internal server error',
-        message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+        error: "Internal server error",
+        message: process.env.NODE_ENV === "development"
+            ? err.message
+            : "Something went wrong",
     });
 });
 let isConnected = false;
@@ -143,7 +173,7 @@ const connectDB = async () => {
         throw error;
     }
 };
-const port = Number(process.env.PORT || 5000);
+const port = Number(process.env.PORT || 8000);
 connectDB()
     .then(() => {
     app.listen(port, () => {
@@ -151,18 +181,18 @@ connectDB()
     });
 })
     .catch((err) => {
-    console.error('❌ Failed to connect to DB, shutting down', err);
+    console.error("❌ Failed to connect to DB, shutting down", err);
     process.exit(1);
 });
 // ✅ For local development
-if (process.env.NODE_ENV !== 'production') {
-    const PORT = process.env.PORT || 5000;
-    connectDB().then(() => {
-        app.listen(PORT, () => {
-            console.log(`🚀 Server running on port ${PORT}`);
-        });
-    });
-}
+// if (process.env.NODE_ENV !== "production") {
+//   const PORT = process.env.PORT || 8000;
+//   connectDB().then(() => {
+//     app.listen(PORT, () => {
+//       console.log(`🚀 Server running on port ${PORT}`);
+//     });
+//   });
+// }
 // ✅ Serverless export (required for Vercel)
 exports.default = app;
 //# sourceMappingURL=index.js.map

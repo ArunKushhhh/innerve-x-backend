@@ -16,7 +16,7 @@ passport_1.default.deserializeUser((obj, done) => {
 passport_1.default.use(new passport_github2_1.Strategy({
     clientID: process.env.GITHUB_CLIENT_ID,
     clientSecret: process.env.GITHUB_CLIENT_SECRET,
-    callbackURL: "http://localhost:8012/auth/github/callback",
+    callbackURL: process.env.GITHUB_CALLBACK_URL,
     scope: [
         "read:user",
         "user:email",
