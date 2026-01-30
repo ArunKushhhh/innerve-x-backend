@@ -6,6 +6,7 @@ import {
   issueFetchRateLimit,
 } from "../middleware/rateLimitMiddleware";
 import { StakeController } from "../controllers/stakeController";
+import { AuthenticatedRequest } from "../middleware/authMiddleware";
 
 const router = Router();
 
@@ -33,9 +34,15 @@ router.get("/issue-details/:issueId", contributorController.getIssueDetails);
 router.get("/profile/:userId", contributorController.getContributorProfile);
 
 // Stakes
-router.get("/stakes", stakeController.getUserStakes);
-router.post("/stakes", stakeController.createStake);
-router.patch("/stakes/:stakeId", stakeController.updateStakeStatus);
+router.get("/stakes", (req, res) =>
+  stakeController.getUserStakes(req as AuthenticatedRequest, res),
+);
+router.post("/stakes", (req, res) =>
+  stakeController.createStake(req as AuthenticatedRequest, res),
+);
+router.patch("/stakes/:stakeId", (req, res) =>
+  stakeController.updateStakeStatus(req as AuthenticatedRequest, res),
+);
 
 // Prepare stake
 router.post("/prepare-stake", contributorController.prepareStake);
