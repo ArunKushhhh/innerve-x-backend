@@ -23,14 +23,14 @@ router.post("/register", async (req, res) => {
     }
     else {
         if (!githubUsername) {
-            res.status(400).json({ message: "GitHub username is required for this role" });
+            res
+                .status(400)
+                .json({ message: "GitHub username is required for this role" });
             return;
         }
     }
     try {
-        const existing = await User_1.default.findOne(role === "company"
-            ? { email }
-            : { githubUsername, role });
+        const existing = await User_1.default.findOne(role === "company" ? { email } : { githubUsername, role });
         if (existing) {
             res.status(409).json({ message: "User already exists" });
             return;
@@ -61,7 +61,9 @@ router.post("/login", async (req, res) => {
         let user;
         if (role === "company") {
             if (!email || !password) {
-                res.status(400).json({ message: "Email and password required for company" });
+                res
+                    .status(400)
+                    .json({ message: "Email and password required for company" });
                 return;
             }
             user = await User_1.default.findOne({ email, role });
@@ -72,7 +74,9 @@ router.post("/login", async (req, res) => {
         }
         else {
             if (!githubUsername) {
-                res.status(400).json({ message: "GitHub username is required for this role" });
+                res
+                    .status(400)
+                    .json({ message: "GitHub username is required for this role" });
                 return;
             }
             user = await User_1.default.findOne({ githubUsername, role });
@@ -81,12 +85,49 @@ router.post("/login", async (req, res) => {
                 return;
             }
         }
-        const token = jsonwebtoken_1.default.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1d" });
+        const token = jsonwebtoken_1.default.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "15d" });
         res.json({ token });
     }
     catch (err) {
         console.error("Login error:", err);
         res.status(500).json({ error: "Login failed" });
+    }
+});
+// GET /api/user - Get current user from JWT
+router.get("/api/user", async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+            res.status(401).json({ message: "No token provided" });
+            return;
+        }
+        const token = authHeader.split(" ")[1];
+        const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET);
+        // Handle both id (from /login) and userId (from OAuth callback)
+        const userIdFromToken = decoded.id || decoded.userId;
+        if (!userIdFromToken) {
+            res.status(401).json({ message: "Invalid token structure" });
+            return;
+        }
+        const user = await User_1.default.findById(userIdFromToken).select("-password");
+        if (!user) {
+            res.status(404).json({ message: "User not found" });
+            return;
+        }
+        res.json({
+            id: user._id,
+            email: user.email,
+            role: user.role,
+            githubUsername: user.githubUsername,
+            accessToken: token,
+            xp: user.xp,
+            coins: user.coins,
+            rank: user.rank,
+        });
+    }
+    catch (err) {
+        console.error("Get user error:", err);
+        res.status(401).json({ message: "Invalid token" });
     }
 });
 exports.default = router;

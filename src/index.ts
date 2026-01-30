@@ -49,10 +49,15 @@ app.use("/", authRoutes);
 // GitHub OAuth (without sessions)
 app.get(
   "/auth/github",
-  passport.authenticate("github", {
-    scope: ["user:email"],
-    session: false,
-  }),
+  (req: Request, res: Response, next: NextFunction) => {
+    const { role } = req.query;
+    console.log("🔍 Incoming role for /auth/github initiation:", role);
+    passport.authenticate("github", {
+      scope: ["user:email"],
+      session: false,
+      state: role ? JSON.stringify({ role }) : undefined,
+    })(req, res, next);
+  },
 );
 
 app.get(
@@ -60,7 +65,9 @@ app.get(
   passport.authenticate("github", { failureRedirect: "/", session: false }),
   async (req, res) => {
     try {
+      console.log("🔍 OAuth Callback Params:", req.query);
       const { profile, accessToken, refreshToken } = req.user as any;
+      console.log("🔍 GitHub Profile:", profile.username);
       const githubUsername = profile.username;
 
       // Extract email from GitHub profile (comes from user:email scope)
@@ -90,19 +97,14 @@ app.get(
           },
         },
         { upsert: true, new: true },
-      )) as {
-        _id: string;
-        role?: string;
-        email?: string;
-        githubUsername: string;
-      };
+      )) as any;
 
       const jwt = require("jsonwebtoken").sign(
         {
           id: dbUser._id.toString(), // Changed from userId to id
           email: dbUser.email,
           githubUsername,
-          role: dbUser.role || "contributor",
+          role: dbUser.role,
         },
         process.env.JWT_SECRET || "fallback-secret",
         { expiresIn: "7d" },

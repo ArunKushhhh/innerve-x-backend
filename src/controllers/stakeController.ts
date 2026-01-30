@@ -8,6 +8,12 @@ export class StakeController {
     try {
       const userId = req.user?.id;
       const { issueId, repository, amount, prUrl } = req.body;
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+
+      if (!userId) {
+        res.status(401).json({ success: false, message: "User not authenticated" });
+        return;
+      }
 
       if (!userId) {
         res.status(401).json({ success: false, message: "Unauthorized" });

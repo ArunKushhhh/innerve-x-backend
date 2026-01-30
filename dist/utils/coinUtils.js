@@ -13,4 +13,5 @@ class CoinUtils {
     }
 }
 exports.CoinUtils = CoinUtils;
+// COrrected this fucntion
 //# sourceMappingURL=coinUtils.js.map

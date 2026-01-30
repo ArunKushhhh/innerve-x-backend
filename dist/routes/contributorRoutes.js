@@ -1,39 +1,18 @@
 "use strict";
-// import { Router } from "express";
-// import { ContributorController } from "../controllers/contributorController";
-// import {
-//   repositoryAnalysisRateLimit,
-//   issueFetchRateLimit,
-// } from "../middleware/rateLimitMiddleware";
-// import { StakeController } from "../controllers/stakeController";
-// const router = Router();
-// const contributorController = new ContributorController();
-// const stakeController = new StakeController();
-// router.post(
-//   "/analyze-repositories",
-//   repositoryAnalysisRateLimit,
-//   contributorController.analyzeUserRepositories
-// );
-// router.post(
-//   "/suggested-issues",
-//   issueFetchRateLimit,
-//   contributorController.getSuggestedIssues
-// );
-// router.post(
-//   "/analyze-repositories",
-//   repositoryAnalysisRateLimit,
-//   contributorController.analyzeUserRepositories
-// );
-// router.post(
-//   "/suggested-issues",
-//   issueFetchRateLimit,
-//   contributorController.getSuggestedIssues
-// );
-// router.get("/issue-details/:issueId", contributorController.getIssueDetails);
-// router.post("/stakes", stakeController.createStake);
-// router.patch("/stakes/:stakesId", stakeController.updateStakeStatus);
-// router.get("/:userId/stakes", stakeController.getUserStakes);
-// router.get("/profile/:userId", contributorController.getContributorProfile);
-// router.post("prepare-stakes", contributorController.prepareStake);
-// export default router;
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const verifyToken_1 = require("../middleware/verifyToken");
+const contributorController_1 = require("../controllers/contributorController");
+const stakeController_1 = require("../controllers/stakeController");
+const router = (0, express_1.Router)();
+router.use(verifyToken_1.verifyToken);
+const contributorController = new contributorController_1.ContributorController();
+const stakeController = new stakeController_1.StakeController();
+router.post("/analyze-repositories", contributorController.analyzeUserRepositories);
+router.post("/suggested-issues", contributorController.getSuggestedIssues);
+router.post("/profile", contributorController.getContributorProfile);
+router.post("/stakes", stakeController.createStake);
+router.patch("/stakes/:stakesId", stakeController.updateStakeStatus);
+router.get("/stakes", stakeController.getUserStakes);
+exports.default = router;
 //# sourceMappingURL=contributorRoutes.js.map

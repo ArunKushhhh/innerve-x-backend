@@ -43,8 +43,12 @@ class StakeController {
     constructor() {
         this.createStake = async (req, res) => {
             try {
-                const { userId } = req.body;
                 const { issueId, repository, amount, prUrl } = req.body;
+                const userId = req.user?.id || req.user?.userId;
+                if (!userId) {
+                    res.status(401).json({ success: false, message: "User not authenticated" });
+                    return;
+                }
                 const user = await User_1.default.findById(userId);
                 if (!user || user.coins < amount) {
                     res.status(400).json({
@@ -130,7 +134,11 @@ class StakeController {
         };
         this.getUserStakes = async (req, res) => {
             try {
-                const { userId } = req.body;
+                const userId = req.user?.id || req.user?.userId;
+                if (!userId) {
+                    res.status(401).json({ success: false, message: "User not authenticated" });
+                    return;
+                }
                 const stakes = await stake_1.default.find({ userId }).sort({ createdAt: -1 });
                 res.status(200).json({
                     success: true,
