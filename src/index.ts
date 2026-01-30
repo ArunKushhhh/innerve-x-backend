@@ -23,8 +23,8 @@ app.use(helmet());
 app.use(
   cors({
     credentials: true,
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    origin: ["http://localhost:5173", "https://pull-quest-frontend.vercel.app"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
@@ -47,18 +47,15 @@ app.get("/health", (req: Request, res: Response): void => {
 app.use("/", authRoutes);
 
 // GitHub OAuth (without sessions)
-app.get(
-  "/auth/github",
-  (req: Request, res: Response, next: NextFunction) => {
-    const { role } = req.query;
-    console.log("🔍 Incoming role for /auth/github initiation:", role);
-    passport.authenticate("github", {
-      scope: ["user:email"],
-      session: false,
-      state: role ? JSON.stringify({ role }) : undefined,
-    })(req, res, next);
-  },
-);
+app.get("/auth/github", (req: Request, res: Response, next: NextFunction) => {
+  const { role } = req.query;
+  console.log("🔍 Incoming role for /auth/github initiation:", role);
+  passport.authenticate("github", {
+    scope: ["user:email"],
+    session: false,
+    state: role ? JSON.stringify({ role }) : undefined,
+  })(req, res, next);
+});
 
 app.get(
   "/auth/github/callback",

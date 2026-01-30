@@ -23,16 +23,99 @@ export class ContributorController {
         return;
       }
 
+      console.log("📋 Profile/:userId request for:", user.githubUsername);
+      console.log("🔑 Has accessToken:", !!user.accessToken);
+      console.log("📦 Has stored githubInfo:", !!user.githubInfo);
+
+      // Default githubInfo structure
+      let githubInfo: any = {
+        name: user.githubUsername,
+        bio: null,
+        location: null,
+        company: null,
+        avatar_url: `https://github.com/${user.githubUsername}.png`,
+        html_url: `https://github.com/${user.githubUsername}`,
+        blog: null,
+        twitter_username: null,
+        public_repos: 0,
+        followers: 0,
+        following: 0,
+      };
+
+      // First, try to use stored githubInfo from database (saved during OAuth)
+      if (user.githubInfo) {
+        try {
+          const storedInfo = JSON.parse(user.githubInfo);
+          console.log("✅ Using stored githubInfo:", storedInfo);
+          githubInfo = {
+            ...githubInfo,
+            ...storedInfo,
+            avatar_url: storedInfo.avatar_url || githubInfo.avatar_url,
+          };
+        } catch (e) {
+          console.error("Failed to parse stored githubInfo:", e);
+        }
+      }
+
+      // If no stored info, fetch from GitHub API
+      if (!user.githubInfo && user.accessToken && user.githubUsername) {
+        try {
+          console.log("🌐 Fetching fresh GitHub profile...");
+          const githubRes = await fetch(
+            `https://api.github.com/users/${user.githubUsername}`,
+            {
+              headers: {
+                Authorization: `Bearer ${user.accessToken}`,
+                Accept: "application/vnd.github.v3+json",
+              },
+            },
+          );
+          if (githubRes.ok) {
+            const githubProfile = await githubRes.json();
+            console.log("✅ Fresh GitHub profile fetched:", githubProfile.bio);
+            githubInfo = {
+              name: githubProfile.name || user.githubUsername,
+              bio: githubProfile.bio || null,
+              location: githubProfile.location || null,
+              company: githubProfile.company || null,
+              avatar_url:
+                githubProfile.avatar_url ||
+                `https://github.com/${user.githubUsername}.png`,
+              html_url:
+                githubProfile.html_url ||
+                `https://github.com/${user.githubUsername}`,
+              blog: githubProfile.blog || null,
+              twitter_username: githubProfile.twitter_username || null,
+              public_repos: githubProfile.public_repos || 0,
+              followers: githubProfile.followers || 0,
+              following: githubProfile.following || 0,
+            };
+          } else {
+            console.error("GitHub API error:", githubRes.status);
+          }
+        } catch (err) {
+          console.error("Failed to fetch GitHub profile:", err);
+        }
+      }
+
+      // Response structure matching ContributorSettings.tsx expectations
       res.status(200).json({
         success: true,
         data: {
-          id: user._id,
-          email: user.email,
-          githubUsername: user.githubUsername,
-          role: user.role,
-          coins: user.coins || 0,
-          xp: user.xp || 0,
-          createdAt: user.createdAt,
+          profile: {
+            id: user._id,
+            email: user.email,
+            githubUsername: user.githubUsername,
+            githubInfo,
+            profile: {
+              name: githubInfo.name,
+              bio: githubInfo.bio,
+            },
+            coins: user.coins || 0,
+            xp: user.xp || 0,
+            rank: user.rank || "Code Novice",
+            createdAt: user.createdAt,
+          },
         },
       });
     } catch (error: any) {

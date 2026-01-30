@@ -4,19 +4,18 @@ import User from "../model/User";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 
 export class StakeController {
-  public createStake = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  public createStake = async (
+    req: AuthenticatedRequest,
+    res: Response,
+  ): Promise<void> => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user?.id || req.user?.userId;
       const { issueId, repository, amount, prUrl } = req.body;
-      const userId = (req as any).user?.id || (req as any).user?.userId;
 
       if (!userId) {
-        res.status(401).json({ success: false, message: "User not authenticated" });
-        return;
-      }
-
-      if (!userId) {
-        res.status(401).json({ success: false, message: "Unauthorized" });
+        res
+          .status(401)
+          .json({ success: false, message: "User not authenticated" });
         return;
       }
 
@@ -59,7 +58,7 @@ export class StakeController {
 
   public updateStakeStatus = async (
     req: AuthenticatedRequest,
-    res: Response
+    res: Response,
   ): Promise<void> => {
     try {
       const { stakeId } = req.params;
@@ -118,7 +117,10 @@ export class StakeController {
     }
   };
 
-  public getUserStakes = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  public getUserStakes = async (
+    req: AuthenticatedRequest,
+    res: Response,
+  ): Promise<void> => {
     try {
       const userId = req.user?.id;
 
