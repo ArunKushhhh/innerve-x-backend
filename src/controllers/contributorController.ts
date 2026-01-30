@@ -1,79 +1,165 @@
+// src/controllers/contributorController.ts
 import { Request, Response } from "express";
-import { GitHubService } from "../services/githubService";
 import User from "../model/User";
 
 export class ContributorController {
-    private githubService: GitHubService;
+  /**
+   * GET /api/contributor/profile/:userId
+   * Get contributor profile by user ID
+   */
+  public getContributorProfile = async (
+    req: Request,
+    res: Response,
+  ): Promise<void> => {
+    try {
+      const { userId } = req.params;
 
-    constructor() {
-        this.githubService = new GitHubService();
+      const user = await User.findById(userId).select("-password");
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          id: user._id,
+          email: user.email,
+          githubUsername: user.githubUsername,
+          role: user.role,
+          coins: user.coins || 0,
+          xp: user.xp || 0,
+          createdAt: user.createdAt,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error fetching contributor profile:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch profile",
+        error: error.message,
+      });
     }
+  };
 
-    public getContributorProfile = async (req: Request, res: Response): Promise<void> => {
-        try {
-            const { accessToken } = req.body;
-            const userId = (req as any).user?.id || (req as any).user?.userId;
+  /**
+   * POST /api/contributor/analyze-repositories
+   * Analyze repositories for a contributor
+   */
+  public analyzeUserRepositories = async (
+    req: Request,
+    res: Response,
+  ): Promise<void> => {
+    try {
+      const { userId, repositories } = req.body;
 
-            if (!userId) {
-                res.status(401).json({ success: false, message: "User not authenticated" });
-                return;
-            }
+      // TODO: Implement full repository analysis with GitHub API
+      // For now, return a placeholder response
+      res.status(200).json({
+        success: true,
+        message: "Repository analysis completed",
+        data: {
+          repositories: repositories || [],
+          suggestedIssues: [],
+        },
+      });
+    } catch (error: any) {
+      console.error("Error analyzing repositories:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to analyze repositories",
+        error: error.message,
+      });
+    }
+  };
 
-            const user = await User.findById(userId);
-            if (!user) {
-                res.status(404).json({ success: false, message: "User not found" });
-                return;
-            }
+  /**
+   * POST /api/contributor/suggested-issues
+   * Get suggested issues for a contributor
+   */
+  public getSuggestedIssues = async (
+    req: Request,
+    res: Response,
+  ): Promise<void> => {
+    try {
+      const { userId, skills } = req.body;
 
-            // If we have an accessToken, we can fetch fresh GitHub info
-            // For now, return what we have in the DB + some defaults
-            res.json({
-                success: true,
-                data: {
-                    profile: {
-                        login: user.githubUsername,
-                        name: user.profile?.name || user.githubUsername,
-                        avatar_url: "", // Should be in githubInfo
-                        public_repos: 0,
-                    },
-                    stats: {
-                        coins: user.coins,
-                        xp: user.xp,
-                        rank: user.rank,
-                        nextRankXP: user.xpForNextRank(),
-                        repositories: 0,
-                        mergedPRs: 0,
-                        activeBounties: 0,
-                    }
-                }
-            });
-        } catch (error: any) {
-            res.status(500).json({ success: false, message: error.message });
-        }
-    };
+      // TODO: Implement AI-powered issue suggestions
+      // For now, return a placeholder response
+      res.status(200).json({
+        success: true,
+        message: "Issues fetched successfully",
+        data: [],
+      });
+    } catch (error: any) {
+      console.error("Error fetching suggested issues:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch suggested issues",
+        error: error.message,
+      });
+    }
+  };
 
-    public analyzeUserRepositories = async (req: Request, res: Response): Promise<void> => {
-        try {
-            const { accessToken } = req.body;
-            if (!accessToken) {
-                res.status(400).json({ success: false, message: "Access token required" });
-                return;
-            }
+  /**
+   * GET /api/contributor/issue-details/:issueId
+   * Get issue details
+   */
+  public getIssueDetails = async (
+    req: Request,
+    res: Response,
+  ): Promise<void> => {
+    try {
+      const { issueId } = req.params;
 
-            // Logic to analyze repositories using GitHubService
-            res.json({ success: true, message: "Repositories analyzed successfully" });
-        } catch (error: any) {
-            res.status(500).json({ success: false, message: error.message });
-        }
-    };
+      // TODO: Fetch issue details from GitHub API
+      res.status(200).json({
+        success: true,
+        message: "Issue details fetched",
+        data: {
+          issueId,
+          title: "Issue placeholder",
+          description: "This is a placeholder",
+        },
+      });
+    } catch (error: any) {
+      console.error("Error fetching issue details:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch issue details",
+        error: error.message,
+      });
+    }
+  };
 
-    public getSuggestedIssues = async (req: Request, res: Response): Promise<void> => {
-        try {
-            const { accessToken } = req.body;
-            // Use GitHubService to find issues
-            res.json({ success: true, data: { issues: [] } });
-        } catch (error: any) {
-            res.status(500).json({ success: false, message: error.message });
-        }
-    };
+  /**
+   * POST /api/contributor/prepare-stake
+   * Prepare a stake for an issue
+   */
+  public prepareStake = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userId, issueId, amount } = req.body;
+
+      res.status(200).json({
+        success: true,
+        message: "Stake prepared",
+        data: {
+          userId,
+          issueId,
+          amount,
+          ready: true,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error preparing stake:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to prepare stake",
+        error: error.message,
+      });
+    }
+  };
 }
