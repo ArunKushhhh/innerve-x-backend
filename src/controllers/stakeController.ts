@@ -1,12 +1,18 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import Stake, { StakeStatus } from "../model/stake";
 import User from "../model/User";
+import { AuthenticatedRequest } from "../middleware/authMiddleware";
 
 export class StakeController {
-  public createStake = async (req: Request, res: Response): Promise<void> => {
+  public createStake = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const { userId } = req.body;
+      const userId = req.user?.id;
       const { issueId, repository, amount, prUrl } = req.body;
+
+      if (!userId) {
+        res.status(401).json({ success: false, message: "Unauthorized" });
+        return;
+      }
 
       const user = await User.findById(userId);
       if (!user || user.coins < amount) {
@@ -46,7 +52,7 @@ export class StakeController {
   };
 
   public updateStakeStatus = async (
-    req: Request,
+    req: AuthenticatedRequest,
     res: Response
   ): Promise<void> => {
     try {
@@ -106,9 +112,15 @@ export class StakeController {
     }
   };
 
-  public getUserStakes = async (req: Request, res: Response): Promise<void> => {
+  public getUserStakes = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const { userId } = req.body;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({ success: false, message: "Unauthorized" });
+        return;
+      }
+
       const stakes = await Stake.find({ userId }).sort({ createdAt: -1 });
 
       res.status(200).json({

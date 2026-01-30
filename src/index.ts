@@ -99,7 +99,8 @@ app.get(
 
       const jwt = require("jsonwebtoken").sign(
         {
-          userId: dbUser._id.toString(),
+          id: dbUser._id.toString(), // Changed from userId to id
+          email: dbUser.email,
           githubUsername,
           role: dbUser.role || "contributor",
         },
@@ -109,7 +110,7 @@ app.get(
 
       const frontendUser = {
         id: dbUser._id.toString(),
-        role: dbUser.role || "contributor", // make sure `role` exists on the user doc
+        role: dbUser.role || "contributor",
         email: dbUser.email,
         githubUsername,
         token: jwt,
