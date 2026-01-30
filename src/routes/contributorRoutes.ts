@@ -1,38 +1,43 @@
-import { Router, RequestHandler } from "express";
+// src/routes/contributorRoutes.ts
+import { Router } from "express";
 import { ContributorController } from "../controllers/contributorController";
 import {
-    repositoryAnalysisRateLimit,
-    issueFetchRateLimit,
+  repositoryAnalysisRateLimit,
+  issueFetchRateLimit,
 } from "../middleware/rateLimitMiddleware";
 import { StakeController } from "../controllers/stakeController";
-import { authMiddleware } from "../middleware/authMiddleware";
 
 const router = Router();
 
 const contributorController = new ContributorController();
-
 const stakeController = new StakeController();
 
+// Repository analysis
 router.post(
-    "/analyze-repositories",
-    authMiddleware as RequestHandler,
-    repositoryAnalysisRateLimit,
-    contributorController.analyzeUserRepositories as RequestHandler
+  "/analyze-repositories",
+  repositoryAnalysisRateLimit,
+  contributorController.analyzeUserRepositories,
 );
 
+// Get suggested issues
 router.post(
-    "/suggested-issues",
-    authMiddleware as RequestHandler,
-    issueFetchRateLimit,
-    contributorController.getSuggestedIssues as RequestHandler
+  "/suggested-issues",
+  issueFetchRateLimit,
+  contributorController.getSuggestedIssues,
 );
 
-router.get("/issue-details/:issueId", authMiddleware as RequestHandler, contributorController.getIssueDetails as RequestHandler);
+// Get issue details
+router.get("/issue-details/:issueId", contributorController.getIssueDetails);
 
-router.post("/stakes", authMiddleware as RequestHandler, stakeController.createStake as RequestHandler);
-router.patch("/stakes/:stakesId", authMiddleware as RequestHandler, stakeController.updateStakeStatus as RequestHandler);
-router.get("/stakes", authMiddleware as RequestHandler, stakeController.getUserStakes as RequestHandler);
-router.post("/profile", authMiddleware as RequestHandler, contributorController.getContributorProfile as RequestHandler);
-router.post("/prepare-stakes", authMiddleware as RequestHandler, contributorController.prepareStake as RequestHandler);
+// Profile
+router.get("/profile/:userId", contributorController.getContributorProfile);
+
+// Stakes
+router.get("/stakes", stakeController.getUserStakes);
+router.post("/stakes", stakeController.createStake);
+router.patch("/stakes/:stakeId", stakeController.updateStakeStatus);
+
+// Prepare stake
+router.post("/prepare-stake", contributorController.prepareStake);
 
 export default router;

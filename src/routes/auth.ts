@@ -9,23 +9,17 @@ const router = Router();
 router.post("/register", async (req: Request, res: Response): Promise<void> => {
   const { email, password, role, githubUsername } = req.body;
 
-  if (!role || !password) {
-    res.status(400).json({ message: "Role and password are required" });
+  if (!role || !password || !email) {
+    res.status(400).json({ message: "Email, role, and password are required" });
     return;
   }
 
-  if (role === "company") {
-    if (!email) {
-      res.status(400).json({ message: "Email is required for company" });
-      return;
-    }
-  } else {
-    if (!githubUsername) {
-      res
-        .status(400)
-        .json({ message: "GitHub username is required for this role" });
-      return;
-    }
+  // Contributors and maintainers also need githubUsername
+  if (role !== "company" && !githubUsername) {
+    res
+      .status(400)
+      .json({ message: "GitHub username is required for this role" });
+    return;
   }
 
   try {
@@ -41,7 +35,7 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = new User({
-      email: email || undefined,
+      email,
       password: hashedPassword,
       role,
       githubUsername: githubUsername || undefined,
@@ -59,8 +53,17 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
 router.post("/login", async (req: Request, res: Response): Promise<void> => {
   const { email, password, role, githubUsername } = req.body;
 
-  if (!role) {
-    res.status(400).json({ message: "Role is required" });
+  // All roles require email, password, and role
+  if (!email || !password || !role) {
+    res.status(400).json({ message: "Email, password, and role are required" });
+    return;
+  }
+
+  // Contributors and maintainers also need githubUsername
+  if (role !== "company" && !githubUsername) {
+    res
+      .status(400)
+      .json({ message: "GitHub username is required for this role" });
     return;
   }
 
@@ -68,32 +71,16 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
     let user;
 
     if (role === "company") {
-      if (!email || !password) {
-        res
-          .status(400)
-          .json({ message: "Email and password required for company" });
-        return;
-      }
-
       user = await User.findOne({ email, role });
-
-      if (!user || !(await bcrypt.compare(password, user.password))) {
-        res.status(401).json({ message: "Invalid credentials" });
-        return;
-      }
     } else {
-      if (!githubUsername) {
-        res
-          .status(400)
-          .json({ message: "GitHub username is required for this role" });
-        return;
-      }
-
+      // Look up by githubUsername and role for contributors/maintainers
       user = await User.findOne({ githubUsername, role });
-      if (!user) {
-        res.status(401).json({ message: "Invalid GitHub credentials" });
-        return;
-      }
+    }
+
+    // Verify user exists and password matches (for ALL roles)
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      res.status(401).json({ message: "Invalid credentials" });
+      return;
     }
 
     const token = jwt.sign(
