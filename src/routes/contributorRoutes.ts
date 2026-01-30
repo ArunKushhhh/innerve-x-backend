@@ -1,47 +1,43 @@
-// import { Router } from "express";
-// import { ContributorController } from "../controllers/contributorController";
-// import {
-//   repositoryAnalysisRateLimit,
-//   issueFetchRateLimit,
-// } from "../middleware/rateLimitMiddleware";
-// import { StakeController } from "../controllers/stakeController";
+// src/routes/contributorRoutes.ts
+import { Router } from "express";
+import { ContributorController } from "../controllers/contributorController";
+import {
+  repositoryAnalysisRateLimit,
+  issueFetchRateLimit,
+} from "../middleware/rateLimitMiddleware";
+import { StakeController } from "../controllers/stakeController";
 
-// const router = Router();
+const router = Router();
 
-// const contributorController = new ContributorController();
+const contributorController = new ContributorController();
+const stakeController = new StakeController();
 
-// const stakeController = new StakeController();
+// Repository analysis
+router.post(
+  "/analyze-repositories",
+  repositoryAnalysisRateLimit,
+  contributorController.analyzeUserRepositories,
+);
 
-// router.post(
-//   "/analyze-repositories",
-//   repositoryAnalysisRateLimit,
-//   contributorController.analyzeUserRepositories
-// );
+// Get suggested issues
+router.post(
+  "/suggested-issues",
+  issueFetchRateLimit,
+  contributorController.getSuggestedIssues,
+);
 
-// router.post(
-//   "/suggested-issues",
-//   issueFetchRateLimit,
-//   contributorController.getSuggestedIssues
-// );
+// Get issue details
+router.get("/issue-details/:issueId", contributorController.getIssueDetails);
 
-// router.post(
-//   "/analyze-repositories",
-//   repositoryAnalysisRateLimit,
-//   contributorController.analyzeUserRepositories
-// );
+// Profile
+router.get("/profile/:userId", contributorController.getContributorProfile);
 
-// router.post(
-//   "/suggested-issues",
-//   issueFetchRateLimit,
-//   contributorController.getSuggestedIssues
-// );
+// Stakes
+router.get("/stakes", stakeController.getUserStakes);
+router.post("/stakes", stakeController.createStake);
+router.patch("/stakes/:stakeId", stakeController.updateStakeStatus);
 
-// router.get("/issue-details/:issueId", contributorController.getIssueDetails);
+// Prepare stake
+router.post("/prepare-stake", contributorController.prepareStake);
 
-// router.post("/stakes", stakeController.createStake);
-// router.patch("/stakes/:stakesId", stakeController.updateStakeStatus);
-// router.get("/:userId/stakes", stakeController.getUserStakes);
-// router.get("/profile/:userId", contributorController.getContributorProfile);
-// router.post("prepare-stakes", contributorController.prepareStake);
-
-// export default router;
+export default router;

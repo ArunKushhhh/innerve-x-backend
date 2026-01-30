@@ -8,7 +8,7 @@ import helmet from "helmet";
 import { handlePRWebhook } from "./webhooks/githubWebhooks";
 import passport from "passport";
 import "./auth/github";
-// import contributorRoutes from "./routes/contributorRoutes";
+import contributorRoutes from "./routes/contributorRoutes";
 import maintainerRoutes from "./routes/MaintainerRoutes";
 import { githubApiRateLimit } from "./middleware/rateLimitMiddleware";
 import User from "./model/User";
@@ -23,18 +23,9 @@ app.use(helmet());
 app.use(
   cors({
     credentials: true,
-    origin: (incomingOrigin, callback) => {
-      const whitelist = [
-        "http://localhost:5173",
-        "https://pull-quest-frontend.vercel.app",
-      ];
-      if (!incomingOrigin || whitelist.includes(incomingOrigin)) {
-        // allow requests with no origin (like mobile apps, curl)
-        callback(null, true);
-      } else {
-        callback(new Error(`Origin ${incomingOrigin} not allowed by CORS`));
-      }
-    },
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
 
@@ -54,6 +45,7 @@ app.get("/health", (req: Request, res: Response): void => {
 });
 
 app.use("/", authRoutes);
+
 // GitHub OAuth (without sessions)
 app.get(
   "/auth/github",
@@ -71,16 +63,30 @@ app.get(
       const { profile, accessToken, refreshToken } = req.user as any;
       const githubUsername = profile.username;
 
+      // Extract email from GitHub profile (comes from user:email scope)
+      const githubEmail =
+        profile.emails?.[0]?.value || profile._json?.email || null;
+
       await connectDB();
-      // ...
+
       const dbUser = (await User.findOneAndUpdate(
         { githubUsername },
         {
           $set: {
             accessToken,
             refreshToken,
-            githubInfo: JSON.stringify(profile._json), // ← stringify here
+            githubInfo: JSON.stringify(profile._json),
             lastLogin: new Date(),
+            // Set email from GitHub if user doesn't already have one
+            ...(githubEmail && { email: githubEmail }),
+          },
+          // Set defaults only on insert (new users)
+          $setOnInsert: {
+            role: "contributor",
+            password: require("bcrypt").hashSync(
+              require("crypto").randomBytes(32).toString("hex"),
+              10,
+            ),
           },
         },
         { upsert: true, new: true },
@@ -125,9 +131,9 @@ app.get(
 
 app.use("/api", githubApiRateLimit);
 app.use("/api/comment", commentRoute);
-// app.use("/api/contributor", contributorRoutes);
+app.use("/api/contributor", contributorRoutes);
 app.use("/api/maintainer", maintainerRoutes);
-app.use("/api/LLM", LLMRoutes); // Migrated to Gemini API
+app.use("/api/LLM", LLMRoutes);
 
 // Webhooks
 app.post(
@@ -135,6 +141,7 @@ app.post(
   express.json({ type: "application/json" }),
   handlePRWebhook,
 );
+
 app.get("/", (_req: Request, res: Response) => {
   res.status(200).json({
     success: true,
