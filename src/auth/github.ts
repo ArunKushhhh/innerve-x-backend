@@ -24,21 +24,19 @@ passport.use(
       callbackURL: process.env.GITHUB_CALLBACK_URL!,
       scope: [
         "read:user",
-        "user:email", 
-        "repo", 
+        "user:email",
+        "repo",
         "read:org",
         "write:repo_hook",
-        "admin:repo_hook", 
-        "write:repo_hook", 
-        "admin:repo_hook", 
-      ]
+        "admin:repo_hook",
+      ],
     },
-    
+
     function (
       accessToken: string,
       refreshToken: string,
       profile: GitHubProfile,
-      done: VerifyCallback
+      done: VerifyCallback,
     ) {
       const user = {
         profile,
@@ -46,6 +44,6 @@ passport.use(
         refreshToken,
       };
       return done(null, user);
-    }    
-  )
+    },
+  ),
 );

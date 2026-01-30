@@ -51,7 +51,7 @@ app.get("/auth/github", (req: Request, res: Response, next: NextFunction) => {
   const { role } = req.query;
   console.log("🔍 Incoming role for /auth/github initiation:", role);
   passport.authenticate("github", {
-    scope: ["user:email"],
+    scope: ["read:user", "user:email", "repo", "read:org"],
     session: false,
     state: role ? JSON.stringify({ role }) : undefined,
   })(req, res, next);
