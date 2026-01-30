@@ -8,7 +8,7 @@ import helmet from "helmet";
 import { handlePRWebhook } from "./webhooks/githubWebhooks";
 import passport from "passport";
 import "./auth/github";
-// import contributorRoutes from "./routes/contributorRoutes";
+import contributorRoutes from "./routes/contributorRoutes";
 import maintainerRoutes from "./routes/MaintainerRoutes";
 import { githubApiRateLimit } from "./middleware/rateLimitMiddleware";
 import User from "./model/User";
@@ -73,13 +73,16 @@ app.get(
 
       await connectDB();
       // ...
+      const email = profile.emails?.[0]?.value;
+
       const dbUser = (await User.findOneAndUpdate(
         { githubUsername },
         {
           $set: {
             accessToken,
             refreshToken,
-            githubInfo: JSON.stringify(profile._json), // ← stringify here
+            email, // Save email
+            githubInfo: JSON.stringify(profile._json),
             lastLogin: new Date(),
           },
         },
@@ -93,7 +96,8 @@ app.get(
 
       const jwt = require("jsonwebtoken").sign(
         {
-          userId: dbUser._id.toString(),
+          id: dbUser._id.toString(), // Changed from userId to id
+          email: dbUser.email,
           githubUsername,
           role: dbUser.role || "contributor",
         },
@@ -103,7 +107,7 @@ app.get(
 
       const frontendUser = {
         id: dbUser._id.toString(),
-        role: dbUser.role || "contributor", // make sure `role` exists on the user doc
+        role: dbUser.role || "contributor",
         email: dbUser.email,
         githubUsername,
         token: jwt,
@@ -125,7 +129,7 @@ app.get(
 
 app.use("/api", githubApiRateLimit);
 app.use("/api/comment", commentRoute);
-// app.use("/api/contributor", contributorRoutes);
+app.use("/api/contributor", contributorRoutes);
 app.use("/api/maintainer", maintainerRoutes);
 app.use("/api/LLM", LLMRoutes); // Migrated to Gemini API
 
