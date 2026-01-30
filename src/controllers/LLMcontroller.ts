@@ -1,9 +1,8 @@
-// src/controllers/maintainer.ts
+// src/controllers/LLMcontroller.ts
+// Migrated from OpenAI to Gemini API
 import { Request, Response, NextFunction } from "express";
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { buildRepoContextPrompt, RepoInfo } from "../data/LLM";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 async function fetchRepoInfo(githubUrl: string): Promise<RepoInfo> {
   console.log(`🔍 fetchRepoInfo: fetching metadata for ${githubUrl}`);
@@ -34,7 +33,7 @@ async function fetchRepoInfo(githubUrl: string): Promise<RepoInfo> {
     open_issues_count: data.open_issues_count,
     language: data.language,
     url: githubUrl,
-    html_url: data.html_url, // Added html_url property
+    html_url: data.html_url,
   };
   console.log(`✅ fetched info:`, info);
   return info;
@@ -43,7 +42,7 @@ async function fetchRepoInfo(githubUrl: string): Promise<RepoInfo> {
 export const generateContext = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     console.log(`📝 generateContext request body:`, req.body);
@@ -53,38 +52,45 @@ export const generateContext = async (
       console.warn(`❌ Validation failed: repos must be a non-empty array`);
       res
         .status(400)
-        .json({ success: false, message: "`repos` must be a non-empty array of URLs" });
+        .json({
+          success: false,
+          message: "`repos` must be a non-empty array of URLs",
+        });
       return;
     }
 
     // 1. fetch RepoInfo[]
     console.log(`📥 Fetching info for ${repos.length} repositories…`);
-    const infos = await Promise.all(
-      repos.map(fetchRepoInfo)
-    );
+    const infos = await Promise.all(repos.map(fetchRepoInfo));
     console.log(`📥 All repo infos:`, infos);
 
     // 2. build the prompt
     const prompt = buildRepoContextPrompt(infos);
-    console.log(`📨 Prompt sent to OpenAI:\n${prompt}`);
+    console.log(`📨 Prompt sent to Gemini:\n${prompt}`);
 
-    // 3. call OpenAI
-    console.log(`🤖 Calling OpenAI gpt-4o-mini…`);
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "You explain open-source repositories." },
-        { role: "user",    content: prompt },
-      ],
-      temperature: 0.7,
-      max_tokens: 500,
+    // 3. Initialize Gemini client
+    const geminiApiKey = process.env.GEMINI_API_KEY;
+    if (!geminiApiKey) {
+      throw new Error("GEMINI_API_KEY environment variable is not set");
+    }
+
+    const genAI = new GoogleGenerativeAI(geminiApiKey);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      systemInstruction: "You explain open-source repositories.",
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 500,
+      },
     });
-    console.log(`📥 OpenAI raw response:`, completion);
 
-    const summary = completion.choices[0]?.message?.content?.trim() ?? "";
+    // 4. Call Gemini
+    console.log(`🤖 Calling Gemini gemini-2.0-flash…`);
+    const result = await model.generateContent(prompt);
+    const summary = result.response.text().trim();
     console.log(`✅ Summary generated:\n${summary}`);
 
-    // 4. Return
+    // 5. Return
     res.json({ success: true, data: summary });
   } catch (err: any) {
     console.error("❌ generateContext error:", err);

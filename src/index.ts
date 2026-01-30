@@ -7,13 +7,13 @@ import { verifyToken } from "./middleware/verifyToken";
 import helmet from "helmet";
 import { handlePRWebhook } from "./webhooks/githubWebhooks";
 import passport from "passport";
-// import "./auth/github";
+import "./auth/github";
 // import contributorRoutes from "./routes/contributorRoutes";
 import maintainerRoutes from "./routes/MaintainerRoutes";
 import { githubApiRateLimit } from "./middleware/rateLimitMiddleware";
 import User from "./model/User";
 import commentRoute from "./routes/commentRoutes";
-// import LLMRoutes from "./routes/LLMroutes"
+import LLMRoutes from "./routes/LLMroutes";
 dotenv.config();
 
 const app: Application = express();
@@ -55,10 +55,13 @@ app.get("/health", (req: Request, res: Response): void => {
 
 app.use("/", authRoutes);
 // GitHub OAuth (without sessions)
-app.get("/auth/github", passport.authenticate("github", {
-  scope: ["user:email"],
-  session: false
-}));
+app.get(
+  "/auth/github",
+  passport.authenticate("github", {
+    scope: ["user:email"],
+    session: false,
+  }),
+);
 
 app.get(
   "/auth/github/callback",
@@ -69,29 +72,38 @@ app.get(
       const githubUsername = profile.username;
 
       await connectDB();
-// ...
-    const dbUser = await User.findOneAndUpdate(
-      { githubUsername },
-      {
-        $set: {
-          accessToken,
-          refreshToken,
-          githubInfo: JSON.stringify(profile._json),   // ← stringify here
-          lastLogin: new Date(),
+      // ...
+      const dbUser = (await User.findOneAndUpdate(
+        { githubUsername },
+        {
+          $set: {
+            accessToken,
+            refreshToken,
+            githubInfo: JSON.stringify(profile._json), // ← stringify here
+            lastLogin: new Date(),
+          },
         },
-      },
-      { upsert: true, new: true }
-    ) as { _id: string; role?: string; email?: string; githubUsername: string };
+        { upsert: true, new: true },
+      )) as {
+        _id: string;
+        role?: string;
+        email?: string;
+        githubUsername: string;
+      };
 
       const jwt = require("jsonwebtoken").sign(
-        { userId: dbUser._id.toString(), githubUsername },
+        {
+          userId: dbUser._id.toString(),
+          githubUsername,
+          role: dbUser.role || "contributor",
+        },
         process.env.JWT_SECRET || "fallback-secret",
-        { expiresIn: "7d" }
+        { expiresIn: "7d" },
       );
 
       const frontendUser = {
         id: dbUser._id.toString(),
-        role: dbUser.role || "contributor",  // make sure `role` exists on the user doc
+        role: dbUser.role || "contributor", // make sure `role` exists on the user doc
         email: dbUser.email,
         githubUsername,
         token: jwt,
@@ -100,23 +112,22 @@ app.get(
       const encoded = encodeURIComponent(JSON.stringify(frontendUser));
       // after you build `encoded`
       res.redirect(
-        `${process.env.FRONTEND_URL || "https://pull-quest-frontend.vercel.app"}/login?user=${encoded}`
+        `${process.env.FRONTEND_URL || "https://pull-quest-frontend.vercel.app"}/login?user=${encoded}`,
       );
-
     } catch (err) {
       console.error("❌ OAuth callback error:", err);
       res.redirect(
-        `${process.env.FRONTEND_URL || "https://pull-quest-frontend.vercel.app"}?error=auth_failed`
+        `${process.env.FRONTEND_URL || "https://pull-quest-frontend.vercel.app"}?error=auth_failed`,
       );
     }
-  }
+  },
 );
 
 app.use("/api", githubApiRateLimit);
 app.use("/api/comment", commentRoute);
 // app.use("/api/contributor", contributorRoutes);
 app.use("/api/maintainer", maintainerRoutes);
-// app.use("/api/LLM", LLMRoutes);
+app.use("/api/LLM", LLMRoutes); // Migrated to Gemini API
 
 // Webhooks
 app.post(

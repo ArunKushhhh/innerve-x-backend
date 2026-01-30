@@ -21,16 +21,16 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
     }
   } else {
     if (!githubUsername) {
-      res.status(400).json({ message: "GitHub username is required for this role" });
+      res
+        .status(400)
+        .json({ message: "GitHub username is required for this role" });
       return;
     }
   }
 
   try {
     const existing = await User.findOne(
-      role === "company"
-        ? { email }
-        : { githubUsername, role }
+      role === "company" ? { email } : { githubUsername, role },
     );
 
     if (existing) {
@@ -69,7 +69,9 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
 
     if (role === "company") {
       if (!email || !password) {
-        res.status(400).json({ message: "Email and password required for company" });
+        res
+          .status(400)
+          .json({ message: "Email and password required for company" });
         return;
       }
 
@@ -81,7 +83,9 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
       }
     } else {
       if (!githubUsername) {
-        res.status(400).json({ message: "GitHub username is required for this role" });
+        res
+          .status(400)
+          .json({ message: "GitHub username is required for this role" });
         return;
       }
 
@@ -95,13 +99,58 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET!,
-      { expiresIn: "15d" }
+      { expiresIn: "15d" },
     );
 
     res.json({ token });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ error: "Login failed" });
+  }
+});
+
+// GET /api/user - Get current user from JWT
+router.get("/api/user", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      res.status(401).json({ message: "No token provided" });
+      return;
+    }
+
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+      id?: string;
+      userId?: string; // OAuth callback uses userId
+      role?: string;
+    };
+
+    // Handle both id (from /login) and userId (from OAuth callback)
+    const userIdFromToken = decoded.id || decoded.userId;
+    if (!userIdFromToken) {
+      res.status(401).json({ message: "Invalid token structure" });
+      return;
+    }
+
+    const user = await User.findById(userIdFromToken).select("-password");
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+
+    res.json({
+      id: user._id,
+      email: user.email,
+      role: user.role,
+      githubUsername: user.githubUsername,
+      accessToken: token,
+      xp: user.xp,
+      coins: user.coins,
+      rank: user.rank,
+    });
+  } catch (err) {
+    console.error("Get user error:", err);
+    res.status(401).json({ message: "Invalid token" });
   }
 });
 

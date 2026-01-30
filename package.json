@@ -11,6 +11,7 @@
     "vercel-build": "npm run build"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@octokit/rest": "^19.0.13",
     "axios": "^1.9.0",
     "bcrypt": "^6.0.0",
